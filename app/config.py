@@ -61,10 +61,11 @@ DEFAULT_SETTINGS = {
     "close_to_tray": True,
     "notifications": True,
     "output_dir": str(EXPORTS_DIR),
-    "delay_seconds": 2.0,
+    "delay_seconds": 4.0,
     "random_delay": True,
     "remember_filters": True,
     "remember_browser": True,
     "last_browser": "chrome",
     "run_mode": "window",           # window | headless
+    "debug_capture_on_block": False,  # снимок (скриншот+консоль+html) в момент белого экрана, для отладки
 }

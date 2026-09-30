@@ -274,13 +274,13 @@ tbody tr:last-child td{border-bottom:0}
           <p class="sub">Сбор продолжится после вашего решения</p>
           <div class="alerts" id="alerts">
           <div class="alert" id="alert-slowdown" hidden>
-            <strong>Похоже на лимит запросов<span class="tag">Предупреждение</span></strong>
-            <p>Яндекс.Карты отвечают медленно или не отдали результаты вовремя.</p>
+            <strong>Похоже на лимит или блокировку<span class="tag">Предупреждение</span></strong>
+            <p id="alert-slowdown-text">Яндекс.Карты отвечают медленно или не отдали результаты вовремя.</p>
             <div class="row"><button class="mini" id="alert-slowdown-continue">Продолжить</button><button class="mini" id="btn-stop-2">Остановить</button></div>
           </div>
           <div class="alert crit" id="alert-captcha" hidden>
             <strong>Нужна капча<span class="tag">Критично</span></strong>
-            <p>Пройдите проверку в открытом окне браузера, затем нажмите «Продолжить».</p>
+            <p id="alert-captcha-text">Пройдите проверку в открытом окне браузера, затем нажмите «Продолжить».</p>
             <div class="row"><button class="mini" id="alert-captcha-continue">Продолжить</button></div>
           </div>
           <div class="alert crit" id="alert-error" hidden>
@@ -462,6 +462,8 @@ function applyStatus(st){
 
   $('alert-captcha').hidden = st.state!=='captcha';
   $('alert-slowdown').hidden = st.state!=='slowdown';
+  if(st.state==='captcha' && st.block_message) $('alert-captcha-text').textContent = st.block_message;
+  if(st.state==='slowdown' && st.block_message) $('alert-slowdown-text').textContent = st.block_message;
   if(st.state==='error') showFatalAlert(st.error_message);
   toggleAlertsEmpty();
 
@@ -602,6 +604,7 @@ async function renderSettings(){
   '</section>'+
   '<section class="card"><h2>Приложение</h2>'+
     settingsRow('Логи','Текстовые логи каждой сессии, без скриншотов','<span class="note"></span><button class="btn" id="open-logs">Открыть папку с логами</button>')+
+    settingsRow('Диагностика при сбое','Разово сохранять скриншот, консоль браузера и HTML страницы в момент белого экрана — не на каждую организацию, только для отладки конкретного сбоя',sw(s.debug_capture_on_block,'set-debugcapture'))+
   '</section>'+
   '<section class="card"><h2>Файлы и сбор</h2>'+
     settingsRow('Папка для файлов','','<input class="in" id="dir" type="text" value="'+esc(s.output_dir)+'" aria-label="Папка для файлов"><button class="btn" id="open-output">Открыть</button>')+
@@ -630,6 +633,7 @@ async function renderSettings(){
       random_delay: $('set-randdelay').checked,
       remember_filters: $('set-rememberfilters').checked,
       remember_browser: $('set-rememberbrowser').checked,
+      debug_capture_on_block: $('set-debugcapture').checked,
     };
     currentSettings = await api().save_settings(updated);
   });

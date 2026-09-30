@@ -61,6 +61,22 @@ def find_browser_binary(key: str) -> str | None:
         found = shutil.which(name)
         if found:
             return found
+
+    # %USERNAME%-путь не всегда раскрывается корректно (например, если
+    # реальный логин отличается от переменной окружения) — для Яндекса
+    # дополнительно пробуем собрать путь напрямую из %LOCALAPPDATA%.
+    if key == "yandex" and IS_WINDOWS:
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            candidate = Path(local_appdata) / "Yandex" / "YandexBrowser" / "Application" / "browser.exe"
+            if candidate.exists():
+                return str(candidate)
+        # На некоторых машинах Яндекс.Браузер ставится на всех пользователей.
+        program_files = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+        candidate = Path(program_files) / "Yandex" / "YandexBrowser" / "Application" / "browser.exe"
+        if candidate.exists():
+            return str(candidate)
+
     for raw in COMMON_PATHS.get(key, []):
         expanded = os.path.expandvars(raw)
         if Path(expanded).exists():
@@ -124,6 +140,17 @@ def _launch_chromium(binary: str, profile: Path, headless: bool, user_agent: str
     options.add_argument("--no-first-run")
     options.add_argument("--no-default-browser-check")
     options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--lang=ru-RU")
+    # У автоматизированного Chrome (виртуалки, ноды без GPU) часто падает
+    # аппаратный WebGL-контекст, на котором держится канвас карты у Яндекс.Карт.
+    # Если контекст падает, у SPA вылетает необработанное исключение и весь
+    # интерфейс белеет — это выглядит как блокировка, но на деле краш рендера.
+    # Форсируем программный (software) WebGL через SwiftShader — медленнее,
+    # но не зависит от нестабильного GPU-драйвера под автоматизацией.
+    options.add_argument("--use-gl=angle")
+    options.add_argument("--use-angle=swiftshader-webgl")
+    options.add_argument("--enable-unsafe-swiftshader")
+    options.add_argument("--ignore-gpu-blocklist")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
     if headless:
@@ -141,11 +168,48 @@ def _launch_chromium(binary: str, profile: Path, headless: bool, user_agent: str
             f"Техническая причина: {exc}"
         ) from exc
 
-    driver.execute_cdp_cmd(
-        "Page.addScriptToEvaluateOnNewDocument",
-        {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"},
-    )
+    _apply_stealth(driver)
     return driver
+
+
+def _apply_stealth(driver):
+    """
+    Прячет самые очевидные следы автоматизации, которые антибот-системы
+    (в т.ч. у Яндекс.Карт) проверяют в первую очередь: флаг navigator.webdriver,
+    пустой список плагинов/языков, нестандартный объект window.chrome.
+    Полностью неотличимым от живого браузера это не делает — но снижает
+    шанс блокировки на "белый экран" после нескольких карточек.
+    """
+    try:
+        from selenium_stealth import stealth
+
+        stealth(
+            driver,
+            languages=["ru-RU", "ru"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+        )
+        return
+    except ImportError:
+        pass  # selenium-stealth не установлен — используем ручной, более скромный патч
+
+    try:
+        driver.execute_cdp_cmd(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {
+                "source": """
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'languages', {get: () => ['ru-RU', 'ru']});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                window.chrome = window.chrome || { runtime: {} };
+                """
+            },
+        )
+    except Exception:
+        pass
 
 
 def _launch_firefox(binary: str, profile: Path, headless: bool, user_agent: str | None):
@@ -161,6 +225,13 @@ def _launch_firefox(binary: str, profile: Path, headless: bool, user_agent: str 
     if user_agent:
         options.set_preference("general.useragent.override", user_agent)
     options.set_preference("dom.webdriver.enabled", False)
+    # Та же причина, что и для Chromium: под автоматизацией GPU-ускоренный
+    # WebGL/композитинг у Firefox тоже может падать и ронять рендер SPA
+    # в белый экран. Переводим композитинг и WebGL на программный рендер.
+    options.set_preference("layers.acceleration.disabled", True)
+    options.set_preference("gfx.webrender.software", True)
+    options.set_preference("webgl.force-enabled", True)
+    options.set_preference("webgl.disable-fail-if-major-performance-caveat", True)
 
     try:
         return webdriver.Firefox(options=options)

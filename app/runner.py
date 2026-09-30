@@ -7,15 +7,21 @@ import datetime as dt
 from . import browser_manager, storage, exporter
 from .logger import SessionLogger
 from .models import Organization
-from .scraper import ScrapeParams, scrape, CaptchaRequired, SlowdownDetected
+from .scraper import ScrapeParams, scrape
 
 
 class RunController:
     """
     Держит состояние одного запуска парсинга и крутит его в отдельном потоке,
     чтобы не блокировать окно приложения. Все данные для UI отдаются через
-    get_status() — простой поллинг раз в ~1 секунду с фронта, этого достаточно
-    для живого журнала и прогресс-бара.
+    get_status() — простой поллинг раз в ~1 секунду с фронта.
+
+    Важно: при капче или "белом экране" поток парсинга НЕ завершается —
+    он встаёт в ожидание внутри handle_block() и оживает сразу, как только
+    пользователь нажмёт "Продолжить" (resume()). Раньше это было не так:
+    капча/лимит выбрасывались как исключение, поток по-тихому умирал, и
+    кнопка "Продолжить" ничего не делала, кроме смены надписи — это было
+    багом, теперь исправлено.
     """
 
     def __init__(self):
@@ -33,9 +39,12 @@ class RunController:
         self.started_at = None
         self.finished_at = None
         self.error_message = ""
+        self.block_message = ""
+        self.debug_capture = False
         self._stop_flag = False
         self._pause_flag = False
-        self._speed_samples: list[int] = []  # найдено-в-минуту, скользящее окно
+        self._blocked_flag = False   # ждём реакции пользователя на капчу/блокировку
+        self._speed_samples: list[int] = []
         self._last_minute_count = 0
         self._last_minute_ts = time.time()
         self._log_offset_seen = 0
@@ -51,7 +60,7 @@ class RunController:
                 query=params_dict["query"],
                 city=params_dict["city"],
                 limit=int(params_dict.get("limit", 100)),
-                delay_seconds=float(params_dict.get("delay_seconds", 2.0)),
+                delay_seconds=float(params_dict.get("delay_seconds", 4.0)),
                 random_delay=bool(params_dict.get("random_delay", True)),
                 hide_with_site=bool(params_dict.get("hide_with_site", False)),
                 hide_with_social=bool(params_dict.get("hide_with_social", False)),
@@ -63,6 +72,7 @@ class RunController:
             self.logger = SessionLogger(self.params.search_text())
             self.state = "running"
             self.started_at = dt.datetime.now()
+            self.debug_capture = storage.load_settings().get("debug_capture_on_block", False)
 
             headless = run_mode == "headless"
             try:
@@ -88,6 +98,7 @@ class RunController:
         with self._lock:
             if self.state in ("paused", "captcha", "slowdown"):
                 self._pause_flag = False
+                self._blocked_flag = False
                 self.state = "running"
                 if self.logger:
                     self.logger.info("Продолжаю сбор")
@@ -96,6 +107,7 @@ class RunController:
         with self._lock:
             self._stop_flag = True
             self._pause_flag = False
+            self._blocked_flag = False
             if self.logger:
                 self.logger.info("Остановлено по команде пользователя")
 
@@ -110,41 +122,49 @@ class RunController:
                 on_found=self._on_found,
                 should_stop=lambda: self._stop_flag,
                 should_pause=lambda: self._pause_flag,
+                handle_block=self._handle_block,
+                logger=self.logger,
+                debug_capture=self.debug_capture,
             )
             with self._lock:
                 self.orgs = orgs
-                if self._stop_flag:
-                    self.state = "stopped"
-                else:
-                    self.state = "done"
+                self.state = "stopped" if self._stop_flag else "done"
                 self.finished_at = dt.datetime.now()
             storage.add_history_entry(
                 self.params.query, self.params.city, len(orgs),
-                params_dict={
-                    "limit": self.params.limit,
-                    "browser": self.browser_key,
-                },
+                params_dict={"limit": self.params.limit, "browser": self.browser_key},
             )
             if self.logger:
                 self.logger.info(f"Готово. Собрано организаций: {len(orgs)}")
-        except CaptchaRequired as exc:
-            with self._lock:
-                self.state = "captcha"
-            if self.logger:
-                self.logger.error(str(exc))
-        except SlowdownDetected as exc:
-            with self._lock:
-                self.state = "slowdown"
-            if self.logger:
-                self.logger.warn(str(exc))
         except Exception as exc:  # непредвиденная ошибка — не роняем приложение
             with self._lock:
                 self.state = "error"
                 self.error_message = str(exc)
+                self.finished_at = dt.datetime.now()
             if self.logger:
                 self.logger.error(f"Непредвиденная ошибка: {exc}")
         finally:
             self._safe_quit_driver()
+
+    def _handle_block(self, kind: str, message: str):
+        """
+        Вызывается из scraper.py при капче или похожей на блокировку
+        пустой странице. Блокирует рабочий поток здесь же (не убивая его)
+        до нажатия "Продолжить" или "Стоп".
+        """
+        with self._lock:
+            self.state = kind
+            self.block_message = message
+            self._blocked_flag = True
+        if self.logger:
+            self.logger.warn(message)
+        while True:
+            with self._lock:
+                if self._stop_flag:
+                    return
+                if not self._blocked_flag:
+                    return
+            time.sleep(0.5)
 
     def _safe_quit_driver(self):
         if self.driver and self.state in ("done", "stopped", "error"):
@@ -186,11 +206,12 @@ class RunController:
                 "state": self.state,
                 "found": len(self.orgs),
                 "limit": self.params.limit if self.params else 0,
-                "orgs": [o.to_dict() for o in self.orgs[-40:]],  # последние — для живого журнала
+                "orgs": [o.to_dict() for o in self.orgs[-40:]],
                 "speed_history": self._speed_samples,
                 "current_speed": current_speed,
                 "elapsed_seconds": elapsed,
                 "error_message": self.error_message,
+                "block_message": self.block_message,
                 "new_log_events": new_events,
                 "query": self.params.query if self.params else "",
                 "city": self.params.city if self.params else "",
