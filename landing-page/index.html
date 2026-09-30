@@ -24,7 +24,7 @@
     --radius: 6px;
     --radius-sm: 3px;
 
-    --content: 640px;
+    --content: 960px;
   }
 
   html {
@@ -58,7 +58,7 @@
   .container {
     max-width: var(--content);
     margin: 0 auto;
-    padding: 0 24px;
+    padding: 0 32px;
   }
 
   a:focus-visible,
@@ -68,24 +68,26 @@
     border-radius: var(--radius-sm);
   }
 
+  /* Header */
+
   header {
-    padding: 96px 0 64px;
+    padding: 120px 0 80px;
   }
 
   .meta {
     font-size: 0.8125rem;
     color: var(--text-mute);
-    margin-bottom: 40px;
+    margin-bottom: 48px;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.01em;
   }
 
   h1 {
-    font-size: clamp(2rem, 5.5vw, 3.25rem);
+    font-size: clamp(2.25rem, 5.5vw, 4rem);
     font-weight: 700;
-    line-height: 1.06;
-    letter-spacing: -0.028em;
-    margin-bottom: 24px;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin-bottom: 28px;
     text-wrap: balance;
   }
 
@@ -94,20 +96,22 @@
   }
 
   .lede {
-    font-size: 1.0625rem;
+    font-size: 1.1875rem;
     color: var(--text-dim);
-    max-width: 52ch;
-    margin-bottom: 40px;
+    max-width: 62ch;
+    margin-bottom: 48px;
     text-wrap: pretty;
   }
 
+  /* Warning */
+
   .warning {
     border-left: 2px solid var(--warn);
-    padding-left: 18px;
-    margin-bottom: 40px;
+    padding-left: 20px;
+    margin-bottom: 48px;
     color: var(--text-dim);
     font-size: 0.9375rem;
-    max-width: 56ch;
+    max-width: 68ch;
   }
 
   .warning strong {
@@ -116,6 +120,8 @@
     margin-bottom: 3px;
     font-weight: 600;
   }
+
+  /* Actions */
 
   .actions {
     display: flex;
@@ -127,7 +133,7 @@
   .btn {
     display: inline-flex;
     align-items: center;
-    padding: 12px 20px;
+    padding: 13px 22px;
     border-radius: var(--radius);
     text-decoration: none;
     font-weight: 600;
@@ -157,18 +163,35 @@
     border-color: var(--border-strong);
   }
 
+  /* Sections */
+
   section {
-    padding: 64px 0;
+    padding: 80px 0;
     border-top: 1px solid var(--border);
   }
 
   h2 {
-    font-size: 1.125rem;
+    font-size: 1.25rem;
     font-weight: 600;
     letter-spacing: -0.015em;
-    margin-bottom: 28px;
+    margin-bottom: 36px;
     color: var(--text);
   }
+
+  /* Two-column layout for wide screens */
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 64px;
+    align-items: start;
+  }
+
+  .split-single {
+    max-width: 760px;
+  }
+
+  /* Steps */
 
   ol.steps {
     list-style: none;
@@ -178,9 +201,9 @@
   ol.steps li {
     counter-increment: step;
     display: grid;
-    grid-template-columns: 28px 1fr;
-    gap: 16px;
-    padding: 18px 0;
+    grid-template-columns: 32px 1fr;
+    gap: 18px;
+    padding: 20px 0;
     border-bottom: 1px solid var(--border);
     align-items: baseline;
   }
@@ -209,17 +232,18 @@
     font-size: 0.9375rem;
   }
 
+  /* Code */
+
   pre {
     background: var(--surface);
     border: 1px solid var(--border);
-    padding: 20px 22px;
+    padding: 22px 24px;
     border-radius: var(--radius);
     overflow-x: auto;
     font-family: "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
     font-size: 0.8125rem;
-    line-height: 1.7;
+    line-height: 1.75;
     color: var(--text);
-    margin-top: 28px;
     tab-size: 2;
   }
 
@@ -237,18 +261,21 @@
     border-radius: var(--radius-sm);
   }
 
+  /* Issues */
+
   ul.issues {
     list-style: none;
+    max-width: 760px;
   }
 
   ul.issues li {
-    padding: 16px 0;
+    padding: 18px 0;
     border-bottom: 1px solid var(--border);
     color: var(--text-dim);
     font-size: 0.9375rem;
     display: grid;
-    grid-template-columns: 16px 1fr;
-    gap: 14px;
+    grid-template-columns: 20px 1fr;
+    gap: 16px;
     align-items: baseline;
   }
 
@@ -261,18 +288,22 @@
     color: var(--warn);
   }
 
+  /* Prose */
+
   .prose p {
     color: var(--text-dim);
-    max-width: 58ch;
+    max-width: 68ch;
     text-wrap: pretty;
   }
 
   .prose p + p {
-    margin-top: 14px;
+    margin-top: 16px;
   }
 
+  /* Footer */
+
   footer {
-    padding: 56px 0 88px;
+    padding: 64px 0 96px;
     color: var(--text-mute);
     font-size: 0.8125rem;
     border-top: 1px solid var(--border);
@@ -292,10 +323,18 @@
     border-color: var(--accent-dim);
   }
 
+  @media (max-width: 900px) {
+    .split {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+  }
+
   @media (max-width: 560px) {
-    header { padding: 72px 0 48px; }
-    section { padding: 48px 0; }
-    .meta { margin-bottom: 32px; }
+    header { padding: 80px 0 56px; }
+    section { padding: 56px 0; }
+    .meta { margin-bottom: 36px; }
+    .container { padding: 0 20px; }
   }
 </style>
 </head>
@@ -319,7 +358,7 @@
     </div>
 
     <div class="actions">
-      <a class="btn btn-primary" href="https://github.com/manypon/yandex-parser">Открыть на GitHub</a>
+      <a class="btn btn-primary" href="https://github.com/manypon/parser-yandex.map">Открыть на GitHub</a>
       <a class="btn btn-ghost" href="#issues">Известные проблемы</a>
     </div>
   </div>
@@ -329,30 +368,31 @@
   <div class="container">
     <h2>Установка</h2>
 
-    <ol class="steps">
-      <li>
-        <div>
-          <h3>Клонировать репозиторий</h3>
-          <p>Нужен Python 3.10 или новее.</p>
-        </div>
-      </li>
-      <li>
-        <div>
-          <h3>Создать окружение и поставить зависимости</h3>
-          <p>Selenium, pywebview, openpyxl.</p>
-        </div>
-      </li>
-      <li>
-        <div>
-          <h3>Запустить</h3>
-          <p>Откроется десктопное окно с интерфейсом.</p>
-        </div>
-      </li>
-    </ol>
+    <div class="split">
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>Клонировать репозиторий</h3>
+            <p>Нужен Python 3.10 или новее.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Создать окружение</h3>
+            <p>Selenium, pywebview, openpyxl.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Запустить</h3>
+            <p>Откроется десктопное окно.</p>
+          </div>
+        </li>
+      </ol>
 
 <pre><span class="c"># клонирование и окружение</span>
-git clone https://github.com/manypon/yandex-parser.git
-cd yandex-parser
+git clone https://github.com/manypon/parser-yandex.map.git
+cd parser-yandex.map
 python -m venv .venv
 source .venv/bin/activate
 
@@ -361,6 +401,7 @@ pip install -r requirements.txt
 
 <span class="c"># запуск</span>
 python main.py</pre>
+    </div>
   </div>
 </section>
 
@@ -394,8 +435,8 @@ python main.py</pre>
 
 <footer>
   <div class="container">
-    <a href="https://github.com/manypon/yandex-parser">GitHub</a> ·
-    <a href="https://github.com/manypon/yandex-parser/issues">Issues</a> ·
+    <a href="https://github.com/manypon/parser-yandex.map">GitHub</a> ·
+    <a href="https://github.com/manypon/parser-yandex.map/issues">Issues</a> ·
     MIT · © 2025 manypon
   </div>
 </footer>
