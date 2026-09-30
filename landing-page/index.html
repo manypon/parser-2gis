@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yandex Parser — сбор данных из Яндекс.Карт</title>
+<meta name="description" content="Инструмент для сбора данных об организациях из Яндекс.Карт. Ранняя альфа, парсер нестабилен.">
+<meta name="color-scheme" content="dark">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0c0c0e;
+    --surface: #15151a;
+    --border: #232329;
+    --border-strong: #35353d;
+    --text: #ededf0;
+    --text-dim: #9b9ba4;
+    --text-mute: #63636c;
+    --accent: #ffdd33;
+    --accent-dim: #b89b1f;
+    --warn: #ffb14d;
+
+    --radius: 6px;
+    --radius-sm: 3px;
+
+    --content: 640px;
+  }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .container {
+    max-width: var(--content);
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+  }
+
+  header {
+    padding: 96px 0 64px;
+  }
+
+  .meta {
+    font-size: 0.8125rem;
+    color: var(--text-mute);
+    margin-bottom: 40px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 3.25rem);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: -0.028em;
+    margin-bottom: 24px;
+    text-wrap: balance;
+  }
+
+  h1 .accent {
+    color: var(--accent);
+  }
+
+  .lede {
+    font-size: 1.0625rem;
+    color: var(--text-dim);
+    max-width: 52ch;
+    margin-bottom: 40px;
+    text-wrap: pretty;
+  }
+
+  .warning {
+    border-left: 2px solid var(--warn);
+    padding-left: 18px;
+    margin-bottom: 40px;
+    color: var(--text-dim);
+    font-size: 0.9375rem;
+    max-width: 56ch;
+  }
+
+  .warning strong {
+    color: var(--warn);
+    display: block;
+    margin-bottom: 3px;
+    font-weight: 600;
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    letter-spacing: -0.005em;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  .btn-primary:hover {
+    background: #fff;
+  }
+
+  .btn-ghost {
+    color: var(--text-dim);
+    border-color: var(--border);
+  }
+
+  .btn-ghost:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  section {
+    padding: 64px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin-bottom: 28px;
+    color: var(--text);
+  }
+
+  ol.steps {
+    list-style: none;
+    counter-reset: step;
+  }
+
+  ol.steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: baseline;
+  }
+
+  ol.steps li:last-child {
+    border-bottom: none;
+  }
+
+  ol.steps li::before {
+    content: counter(step, decimal-leading-zero);
+    font-size: 0.75rem;
+    color: var(--text-mute);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  ol.steps h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 3px;
+  }
+
+  ol.steps p {
+    color: var(--text-dim);
+    font-size: 0.9375rem;
+  }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 22px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--text);
+    margin-top: 28px;
+    tab-size: 2;
+  }
+
+  pre .c {
+    color: var(--text-mute);
+  }
+
+  code {
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 0.875em;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+  }
+
+  ul.issues {
+    list-style: none;
+  }
+
+  ul.issues li {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.9375rem;
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    gap: 14px;
+    align-items: baseline;
+  }
+
+  ul.issues li:last-child {
+    border-bottom: none;
+  }
+
+  ul.issues li::before {
+    content: "—";
+    color: var(--warn);
+  }
+
+  .prose p {
+    color: var(--text-dim);
+    max-width: 58ch;
+    text-wrap: pretty;
+  }
+
+  .prose p + p {
+    margin-top: 14px;
+  }
+
+  footer {
+    padding: 56px 0 88px;
+    color: var(--text-mute);
+    font-size: 0.8125rem;
+    border-top: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+
+  footer a {
+    color: var(--text-dim);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1px;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  footer a:hover {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+  }
+
+  @media (max-width: 560px) {
+    header { padding: 72px 0 48px; }
+    section { padding: 48px 0; }
+    .meta { margin-bottom: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="meta">v1 · alpha · MIT</div>
+
+    <h1>Парсер организаций из <span class="accent">Яндекс.Карт</span></h1>
+
+    <p class="lede">
+      Собирает название, адрес, рейтинг, категории и телефон.
+      Экспорт в Excel. Десктопный интерфейс на pywebview.
+    </p>
+
+    <div class="warning">
+      <strong>Ранняя альфа. Не готов к использованию.</strong>
+      Парсер стабильно собирает около пяти карточек, после чего Яндекс
+      блокирует браузер белым экраном. Обход защиты не реализован.
+    </div>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/manypon/yandex-parser">Открыть на GitHub</a>
+      <a class="btn btn-ghost" href="#issues">Известные проблемы</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="container">
+    <h2>Установка</h2>
+
+    <ol class="steps">
+      <li>
+        <div>
+          <h3>Клонировать репозиторий</h3>
+          <p>Нужен Python 3.10 или новее.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Создать окружение и поставить зависимости</h3>
+          <p>Selenium, pywebview, openpyxl.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Запустить</h3>
+          <p>Откроется десктопное окно с интерфейсом.</p>
+        </div>
+      </li>
+    </ol>
+
+<pre><span class="c"># клонирование и окружение</span>
+git clone https://github.com/manypon/yandex-parser.git
+cd yandex-parser
+python -m venv .venv
+source .venv/bin/activate
+
+<span class="c"># зависимости</span>
+pip install -r requirements.txt
+
+<span class="c"># запуск</span>
+python main.py</pre>
+  </div>
+</section>
+
+<section id="issues">
+  <div class="container">
+    <h2>Известные проблемы</h2>
+
+    <ul class="issues">
+      <li>Белый экран после примерно пяти спарсенных карточек. Яндекс детектит <code>navigator.webdriver</code>.</li>
+      <li>Нет stealth-режима, ротации User-Agent и прокси.</li>
+      <li>Больше нескольких десятков карточек подряд собрать не получится.</li>
+      <li>Селекторы привязаны к текущей вёрстке — при обновлении сайта могут отвалиться.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="container prose">
+    <h2>Когда пригодится</h2>
+    <p>
+      Для небольшой выборки организаций: аналитика, исследование рынка,
+      обогащение базы. С поправкой на то, что каждые пять карточек парсер
+      придётся перезапускать руками.
+    </p>
+    <p>
+      Если нужно больше — смотри в сторону <code>invisible-playwright</code>
+      или <code>camoufox</code>.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <a href="https://github.com/manypon/yandex-parser">GitHub</a> ·
+    <a href="https://github.com/manypon/yandex-parser/issues">Issues</a> ·
+    MIT · © 2025 manypon
+  </div>
+</footer>
+
+</body>
+</html>
