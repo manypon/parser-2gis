@@ -73,8 +73,8 @@ MIT *(будет уточнено после релиза)*.
 
 ## 📬 Контакты
 
-- **Issues:** [GitHub Issues](https://github.com/your-username/yandex-maps-parser/issues)
-- **Автор:** [@your-username](https://github.com/your-username)
+- **Issues:** [GitHub Issues](https://github.com/manypon/parser-yandex.map/issues)
+- **Автор:** [@your-username](https://github.com/manypon)
 
 ---
 
