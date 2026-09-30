@@ -75,5 +75,5 @@ MIT. Лицензия распространяется только на исх�
 
 ## 📬 Контакты
 
-- Issues: GitHub Issues(https://github.com/manypon/parser-yandex.map)
-- GitHub: GitHub(https://github.com/manypon)
+- Issues: GitHub Issues (https://github.com/manypon/parser-yandex.map)
+- GitHub: GitHub (https://github.com/manypon)
